@@ -1,0 +1,83 @@
+# -------------------------------
+# OS / Editor
+# -------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.idea/
+.vscode/
+
+# -------------------------------
+# Python
+# -------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+backend/myenv/
+
+# -------------------------------
+# Environment / secrets
+# -------------------------------
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# -------------------------------
+# Logs
+# -------------------------------
+*.log
+logs/
+
+# -------------------------------
+# Backend runtime data
+# -------------------------------
+backend/chroma_db/
+backend/mem0_storage/
+backend/app/db/*.db
+backend/app/db/*.sqlite
+backend/app/db/*.sqlite3
+
+# -------------------------------
+# Node / Frontend
+# -------------------------------
+node_modules/
+frontend/node_modules/
+
+dist/
+frontend/dist/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------------------------------
+# Build / cache
+# -------------------------------
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+.cache/
+frontend/.vite/
