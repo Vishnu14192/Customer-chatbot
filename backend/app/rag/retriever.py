@@ -1,9 +1,12 @@
 import re
+import os
 from collections import Counter
+from pathlib import Path
 
 from app.rag.embeddings import EmbeddingService
 from app.rag.reranker import ChunkReranker
 from app.rag.vector_store import VectorStore
+from app.rag.ingestion_pipeline import IngestionPipeline
 
 
 class Retriever:
@@ -16,7 +19,7 @@ class Retriever:
 
         self.reranker = ChunkReranker()
 
-        self.max_distance = 1.0
+        self.max_distance = 1.6
 
         self.relative_margin = 0.25
 
@@ -25,6 +28,39 @@ class Retriever:
         self.keyword_weight = 0.3
 
         self.min_keyword_score = 0.05
+
+        # Confidence gates to avoid attributing unrelated queries to docs.
+        self.min_rerank_score = float(
+            os.getenv("RAG_MIN_RERANK_SCORE", "0.56")
+        )
+        self.min_cross_encoder_score = float(
+            os.getenv("RAG_MIN_CROSS_ENCODER_SCORE", "0.54")
+        )
+        self.min_keyword_accept_score = float(
+            os.getenv("RAG_MIN_KEYWORD_ACCEPT_SCORE", "0.08")
+        )
+
+        self._ensure_documents_available()
+
+    def _ensure_documents_available(self) -> None:
+        try:
+            if self.vector_store.count() > 0:
+                return
+
+            docs_dir = (
+                Path(__file__).resolve().parent.parent.parent
+                / "data"
+                / "docs"
+            )
+
+            if not docs_dir.exists():
+                return
+
+            pipeline = IngestionPipeline()
+            pipeline.ingest_directory(str(docs_dir))
+        except Exception:
+            # Keep retrieval service available even if ingestion fails.
+            return
 
     def _tokenize(self, text: str) -> list[str]:
         return re.findall(r"[a-z0-9]+", (text or "").lower())
@@ -100,6 +136,25 @@ class Retriever:
                     "metadata": metadatas[index],
                     "distance": float(distance),
                     "vector_score": 1.0 / (1.0 + max(float(distance), 0.0)),
+                    "keyword_score": 0.0
+                }
+            )
+
+        if filtered:
+            return filtered
+
+        # If absolute thresholds are too strict for the active distance metric,
+        # still keep the closest vector matches as candidates.
+        fallback_count = min(top_n, len(distances))
+
+        for index in range(fallback_count):
+            distance = float(distances[index])
+            filtered.append(
+                {
+                    "document": documents[index],
+                    "metadata": metadatas[index],
+                    "distance": distance,
+                    "vector_score": 1.0 / (1.0 + max(distance, 0.0)),
                     "keyword_score": 0.0
                 }
             )
@@ -199,6 +254,19 @@ class Retriever:
             "reranked_chunks": []
         }
 
+    def _is_confident_chunk(self, item: dict) -> bool:
+        rerank_score = float(item.get("rerank_score", 0.0))
+        cross_encoder_score = float(item.get("cross_encoder_score", 0.0))
+        keyword_score = float(item.get("keyword_score", 0.0))
+
+        passes_rerank = rerank_score >= self.min_rerank_score
+        has_supporting_signal = (
+            cross_encoder_score >= self.min_cross_encoder_score
+            or keyword_score >= self.min_keyword_accept_score
+        )
+
+        return passes_rerank and has_supporting_signal
+
     def search(
         self,
         query: str,
@@ -239,18 +307,27 @@ class Retriever:
             top_k=top_k
         )
 
+        confident_chunks = [
+            item
+            for item in reranked_chunks
+            if self._is_confident_chunk(item)
+        ]
+
+        if not confident_chunks:
+            return self._empty_response()
+
         return {
             "documents": [[
                 item["document"]
-                for item in reranked_chunks
+                for item in confident_chunks
             ]],
             "metadatas": [[
                 item["metadata"]
-                for item in reranked_chunks
+                for item in confident_chunks
             ]],
             "distances": [[
                 item["distance"]
-                for item in reranked_chunks
+                for item in confident_chunks
             ]],
-            "reranked_chunks": reranked_chunks
+            "reranked_chunks": confident_chunks
         }

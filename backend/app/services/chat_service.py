@@ -1,6 +1,9 @@
+import uuid
+from collections.abc import Generator
+
 from app.rag.retriever import Retriever
 from app.rag.prompt_builder import PromptBuilder
-from app.llm.openai_client import OpenAIClient
+from app.llm.ollama_client import OllamaClient
 from app.services.memory_service import MemoryService
 
 from app.services.chat_history_service import (
@@ -17,7 +20,7 @@ class ChatService:
 
         self.retriever = Retriever()
 
-        self.llm = OpenAIClient()
+        self.llm = OllamaClient()
 
         self.memory_service = MemoryService()
 
@@ -71,15 +74,20 @@ class ChatService:
 
         return candidate
 
-    def chat(
+    def _build_chat_plan(
         self,
         user_id: str,
-        question: str
-    ):
-        # ------ History -----
+        question: str,
+        thread_id: str | None = None
+    ) -> dict:
+        resolved_thread_id = thread_id or str(
+            uuid.uuid4()
+        )
+
         history = (
             self.chat_history.get_history(
-                user_id
+                user_id,
+                thread_id=resolved_thread_id
             )
         )
 
@@ -95,25 +103,13 @@ class ChatService:
             rewritten_question=rewritten_question
         )
 
-        print(
-            f"\nOriginal: {question}"
-        )
-
-        print(
-            f"\nRewritten: {rewritten_question}"
-        )
-
-        print(
-            f"\nEffective: {effective_question}"
-        )
-
         self.chat_history.add_message(
-                user_id=user_id,
-                role="user",
-                message=question
-            )
+            user_id=user_id,
+            thread_id=resolved_thread_id,
+            role="user",
+            message=question
+        )
 
-        # -------Summary --------------
         summary_keywords = [
             "summarize",
             "summary",
@@ -125,7 +121,6 @@ class ChatService:
             word in effective_question.lower()
             for word in summary_keywords
         ):
-
             history_text = "\n".join(
                 [
                     f"{h['role']}: {h['content']}"
@@ -141,18 +136,13 @@ class ChatService:
         {history_text}
         """
 
-            answer = self.llm.generate(
-                prompt
-            )
-
             return {
-                "answer": answer,
-                "sources": []
+                "thread_id": resolved_thread_id,
+                "prompt": prompt,
+                "sources": [],
+                "should_store_memory": False,
+                "question": question,
             }
-
-        # ----------------------------------
-        # Search Memory
-        # ----------------------------------
 
         memory_results = (
             self.memory_service.search_memory(
@@ -167,10 +157,6 @@ class ChatService:
             if "memory" in item
         ]
 
-        # ----------------------------------
-        # Personal Question Detection
-        # ----------------------------------
-
         personal_keywords = [
             "my name",
             "who am i",
@@ -184,12 +170,7 @@ class ChatService:
             for keyword in personal_keywords
         )
 
-        # ----------------------------------
-        # Answer from Memory
-        # ----------------------------------
-
         if is_personal and memories:
-
             memory_context = "\n".join(
                 memories
             )
@@ -208,25 +189,13 @@ QUESTION:
 ANSWER:
 """
 
-            answer = self.llm.generate(
-                prompt
-            )
-
-            self.chat_history.add_message(
-                user_id=user_id,
-                role="assistant",
-                message=answer
-            )
-
             return {
-                "answer": answer,
-                "sources": ["memory"]
+                "thread_id": resolved_thread_id,
+                "prompt": prompt,
+                "sources": ["memory"],
+                "should_store_memory": False,
+                "question": question,
             }
-
-        # ----------------------------------
-        # Search Knowledge Base
-        # ----------------------------------
-        
 
         results = self.retriever.search(
             effective_question
@@ -235,40 +204,31 @@ ANSWER:
         docs = []
 
         if results["documents"]:
-
             docs = results["documents"][0]
 
-        # ----------------------------------
-        # KB Answer
-        # ----------------------------------
-
         if docs:
-
             prompt = PromptBuilder.build(
                 effective_question,
                 docs,
-                memories, 
+                memories,
                 history
             )
 
-            answer = self.llm.generate(
-                prompt
+            metadata_rows = (
+                (results.get("metadatas") or [[]])[0]
             )
 
-
-            sources = list(
-                set(
-                    m["source"]
-                    for m in results["metadatas"][0]
-                )
+            sources = sorted(
+                {
+                    m.get("source", "flipkart_docs")
+                    for m in metadata_rows
+                    if isinstance(m, dict)
+                }
             )
 
+            if not sources:
+                sources = ["flipkart_docs"]
         else:
-
-            # ----------------------------------
-            # General Chat Fallback
-            # ----------------------------------
-
             prompt = PromptBuilder.build(
                 effective_question,
                 [],
@@ -276,30 +236,100 @@ ANSWER:
                 history
             )
 
-            answer = self.llm.generate(prompt)
-
             sources = ["llm"]
 
-        # ----------------------------------
-        # Save Personal Memories
-        # ----------------------------------
+        return {
+            "thread_id": resolved_thread_id,
+            "prompt": prompt,
+            "sources": sources,
+            "should_store_memory": self.memory_service.should_store_memory(question),
+            "question": question,
+        }
 
-        if self.memory_service.should_store_memory(
-            question
-        ):
+    def chat(
+        self,
+        user_id: str,
+        question: str,
+        thread_id: str | None = None
+    ):
+        plan = self._build_chat_plan(
+            user_id=user_id,
+            question=question,
+            thread_id=thread_id
+        )
 
+        answer = self.llm.generate(
+            plan["prompt"]
+        )
+
+        if plan["should_store_memory"]:
             self.memory_service.add_memory(
                 user_id=user_id,
-                message=question
+                message=plan["question"]
             )
 
         self.chat_history.add_message(
-                user_id=user_id,
-                role="assistant",
-                message=answer
-            )
+            user_id=user_id,
+            thread_id=plan["thread_id"],
+            role="assistant",
+            message=answer,
+            sources=plan["sources"]
+        )
 
         return {
             "answer": answer,
-            "sources": sources
+            "sources": plan["sources"],
+            "thread_id": plan["thread_id"]
+        }
+
+    def chat_stream_events(
+        self,
+        user_id: str,
+        question: str,
+        thread_id: str | None = None
+    ) -> Generator[dict, None, None]:
+        plan = self._build_chat_plan(
+            user_id=user_id,
+            question=question,
+            thread_id=thread_id
+        )
+
+        yield {
+            "type": "start",
+            "thread_id": plan["thread_id"],
+            "sources": plan["sources"]
+        }
+
+        chunks = []
+
+        for token in self.llm.generate_stream(
+            plan["prompt"]
+        ):
+            chunks.append(token)
+
+            yield {
+                "type": "token",
+                "content": token
+            }
+
+        answer = "".join(chunks)
+
+        if plan["should_store_memory"]:
+            self.memory_service.add_memory(
+                user_id=user_id,
+                message=plan["question"]
+            )
+
+        self.chat_history.add_message(
+            user_id=user_id,
+            thread_id=plan["thread_id"],
+            role="assistant",
+            message=answer,
+            sources=plan["sources"]
+        )
+
+        yield {
+            "type": "end",
+            "thread_id": plan["thread_id"],
+            "sources": plan["sources"]
         }

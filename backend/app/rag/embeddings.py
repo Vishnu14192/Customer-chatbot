@@ -1,57 +1,27 @@
 import os
-
+from sentence_transformers import SentenceTransformer
 import numpy as np
-from dotenv import load_dotenv
-from openai import OpenAI
 
 
 class EmbeddingService:
 
     def __init__(
         self,
-        model_name: str | None = None,
-        api_key: str | None = None
+        model_name: str | None = None
     ):
-        load_dotenv()
-
+        # Use a local sentence-transformers model for embeddings to avoid external API usage.
         self.model_name = model_name or os.getenv(
-            "OPENAI_RAG_EMBEDDING_MODEL",
-            "text-embedding-3-small"
+            "EMBEDDING_MODEL_NAME",
+            "all-MiniLM-L6-v2"
         )
 
-        resolved_api_key = api_key or os.getenv(
-            "OPENAI_API_KEY"
-        )
-
-        if not resolved_api_key:
-            raise ValueError(
-                "OPENAI_API_KEY is missing. Set it in your environment or backend/.env"
-            )
-
-        self.client = OpenAI(
-            api_key=resolved_api_key
-        )
+        self.model = SentenceTransformer(self.model_name)
 
     def embed_documents(self, texts):
-        response = self.client.embeddings.create(
-            model=self.model_name,
-            input=texts
-        )
-
-        vectors = [
-            item.embedding
-            for item in response.data
-        ]
-
+        # returns numpy array of shape (len(texts), dim)
+        vectors = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         return np.array(vectors, dtype=np.float32)
 
     def embed_query(self, query):
-        response = self.client.embeddings.create(
-            model=self.model_name,
-            input=query
-        )
-
-        return np.array(
-            response.data[0].embedding,
-            dtype=np.float32
-        )
+        vec = self.model.encode([query], convert_to_numpy=True, show_progress_bar=False)[0]
+        return np.array(vec, dtype=np.float32)
