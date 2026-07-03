@@ -1,3 +1,5 @@
+/** Shared frontend TypeScript models for chat messages and threads. */
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";

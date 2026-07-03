@@ -1,3 +1,5 @@
+"""SQLite-backed persistence for messages and thread metadata."""
+
 import sqlite3
 import threading
 import json
@@ -7,6 +9,7 @@ _DB_PATH = Path(__file__).parent.parent / "db" / "chat_history.db"
 
 
 class ChatHistoryService:
+    """CRUD operations for conversation history and thread-level metadata."""
 
     def __init__(self):
 
@@ -24,6 +27,7 @@ class ChatHistoryService:
         self.create_table()
 
     def create_table(self):
+        """Create/migrate schema and indexes needed by chat history queries."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -85,6 +89,7 @@ class ChatHistoryService:
         message,
         sources=None
     ):
+        """Insert one user/assistant message row into history."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -121,6 +126,7 @@ class ChatHistoryService:
         thread_id=None,
         limit=20
     ):
+        """Return recent messages for a user, optionally scoped to one thread."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -171,6 +177,7 @@ class ChatHistoryService:
         self,
         user_id
     ):
+        """Delete all messages for a user (global history clear)."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -192,6 +199,7 @@ class ChatHistoryService:
         user_id,
         limit=50
     ):
+        """Return thread summaries for sidebar rendering."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -248,6 +256,7 @@ class ChatHistoryService:
         thread_id,
         limit=200
     ):
+        """Return ordered messages for one thread to rebuild conversation view."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -284,6 +293,7 @@ class ChatHistoryService:
         user_id,
         thread_id
     ):
+        """Delete one thread and all of its messages."""
 
         with self._lock:
             cursor = self.conn.cursor()
@@ -311,6 +321,7 @@ class ChatHistoryService:
         thread_id,
         title
     ):
+        """Persist a custom thread title across all rows of the thread."""
 
         with self._lock:
             cursor = self.conn.cursor()

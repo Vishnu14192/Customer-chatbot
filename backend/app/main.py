@@ -1,3 +1,8 @@
+"""Application entrypoint.
+
+Creates the FastAPI app, applies middleware, and registers HTTP/WS routes.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +31,7 @@ app.include_router(chat_router)
 
 @app.get("/health")
 async def health():
+    """Return a lightweight health status for uptime checks."""
     return {
         "status": "healthy"
     }

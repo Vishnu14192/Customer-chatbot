@@ -1,3 +1,5 @@
+"""Offline ingestion pipeline that chunks docs, embeds them, and stores vectors."""
+
 from pathlib import Path
 
 from app.rag.chunker import DocumentChunker
@@ -6,6 +8,7 @@ from app.rag.vector_store import VectorStore
 
 
 class IngestionPipeline:
+    """Coordinates document ingestion into the vector store."""
 
     def __init__(self):
 
@@ -19,6 +22,7 @@ class IngestionPipeline:
         self,
         docs_dir: str
     ):
+        """Ingest all markdown files in a directory into Chroma."""
 
         docs_path = Path(docs_dir)
 

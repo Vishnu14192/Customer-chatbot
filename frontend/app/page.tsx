@@ -1,11 +1,14 @@
 "use client";
 
+/** Main chat page composing sidebar, thread view, and input controls. */
+
 import ChatWindow from "@/components/ChatWindow";
 import ChatInput from "@/components/ChatInput";
 import ChatSidebar from "@/components/ChatSidebar";
 import { useChat } from "@/hooks/useChat";
 
 export default function Home() {
+  /** Entry UI for the customer support chatbot experience. */
 
   const {
     threads,
@@ -34,7 +37,7 @@ export default function Home() {
           />
 
           <section className="flex-1 p-4 md:p-6">
-            <h1 className="text-2xl md:text-3xl font-bold mb-4">
+            <h1 className="text-2xl md:text-3xl font-bold mb-4 text-black">
               Flipkart Customer Care Chatbot
             </h1>
 

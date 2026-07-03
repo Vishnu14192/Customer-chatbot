@@ -1,7 +1,10 @@
+"""Text chunking helper for splitting long documents into retrieval units."""
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 class DocumentChunker:
+    """Wrapper around RecursiveCharacterTextSplitter with project defaults."""
 
     def __init__(
         self,
@@ -14,4 +17,5 @@ class DocumentChunker:
         )
 
     def chunk_text(self, text: str):
+        """Split a raw document string into overlapping chunks."""
         return self.splitter.split_text(text)

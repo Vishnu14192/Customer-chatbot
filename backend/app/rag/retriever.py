@@ -1,3 +1,5 @@
+"""Hybrid retriever combining vector search, keyword scoring, and reranking."""
+
 import re
 import os
 from collections import Counter
@@ -10,6 +12,7 @@ from app.rag.ingestion_pipeline import IngestionPipeline
 
 
 class Retriever:
+    """Returns high-confidence document chunks and metadata for a query."""
 
     def __init__(self):
 
@@ -43,6 +46,7 @@ class Retriever:
         self._ensure_documents_available()
 
     def _ensure_documents_available(self) -> None:
+        """Auto-ingest docs if vector store is empty at startup."""
         try:
             if self.vector_store.count() > 0:
                 return
@@ -63,9 +67,11 @@ class Retriever:
             return
 
     def _tokenize(self, text: str) -> list[str]:
+        """Tokenize text into lowercase alphanumeric terms for keyword overlap."""
         return re.findall(r"[a-z0-9]+", (text or "").lower())
 
     def _keyword_score(self, query: str, document: str) -> float:
+        """Compute lexical overlap score between query and one chunk."""
         query_tokens = self._tokenize(query)
         doc_tokens = self._tokenize(document)
 
@@ -96,6 +102,7 @@ class Retriever:
         return max(0.0, min(score, 1.0))
 
     def _candidate_key(self, item: dict) -> str:
+        """Build a stable key used to deduplicate fused candidates."""
         metadata = item.get("metadata") or {}
         source = metadata.get("source", "")
         chunk_id = metadata.get("chunk_id", "")
@@ -107,6 +114,7 @@ class Retriever:
         return f"{source}::{document[:120]}"
 
     def _vector_candidates(self, query_embedding, top_n: int) -> list[dict]:
+        """Fetch nearest vector matches and apply initial distance filters."""
         results = self.vector_store.collection.query(
             query_embeddings=[query_embedding.tolist()],
             n_results=top_n,
@@ -143,8 +151,8 @@ class Retriever:
         if filtered:
             return filtered
 
-        # If absolute thresholds are too strict for the active distance metric,
-        # still keep the closest vector matches as candidates.
+        # If strict thresholds produce no candidates, keep nearest neighbors so
+        # downstream confidence gates can decide whether to accept or reject.
         fallback_count = min(top_n, len(distances))
 
         for index in range(fallback_count):
@@ -162,6 +170,7 @@ class Retriever:
         return filtered
 
     def _keyword_candidates(self, query: str, top_n: int) -> list[dict]:
+        """Build keyword-scored candidates from stored documents."""
         stored = self.vector_store.collection.get(
             include=["documents", "metadatas"]
         )
@@ -197,6 +206,7 @@ class Retriever:
         vector_candidates: list[dict],
         keyword_candidates: list[dict]
     ) -> list[dict]:
+        """Merge vector and keyword candidates into one ranked pool."""
         fused = {}
 
         for item in vector_candidates:
@@ -247,6 +257,7 @@ class Retriever:
         return ranked
 
     def _empty_response(self):
+        """Return canonical empty structure expected by callers."""
         return {
             "documents": [],
             "metadatas": [],
@@ -255,6 +266,7 @@ class Retriever:
         }
 
     def _is_confident_chunk(self, item: dict) -> bool:
+        """Apply confidence thresholds before exposing chunks as context."""
         rerank_score = float(item.get("rerank_score", 0.0))
         cross_encoder_score = float(item.get("cross_encoder_score", 0.0))
         keyword_score = float(item.get("keyword_score", 0.0))
@@ -273,6 +285,7 @@ class Retriever:
         top_k: int = 3,
         candidate_k: int = 8
     ):
+        """Run full retrieval pipeline and return confident context chunks."""
 
         query_embedding = (
             self.embedding_service

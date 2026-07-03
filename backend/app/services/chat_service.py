@@ -1,3 +1,5 @@
+"""Main orchestration service for retrieval, memory, LLM calls, and persistence."""
+
 import uuid
 from collections.abc import Generator
 
@@ -15,6 +17,7 @@ from app.services.query_rewriter import (
 
 
 class ChatService:
+    """Coordinates the full chat pipeline for both sync and streaming modes."""
 
     def __init__(self):
 
@@ -33,6 +36,7 @@ class ChatService:
         original_question: str,
         rewritten_question: str
     ) -> str:
+        """Reject rewrite outputs that look like answers and keep safe query text."""
         candidate = (
             (rewritten_question or "")
             .strip()
@@ -80,6 +84,7 @@ class ChatService:
         question: str,
         thread_id: str | None = None
     ) -> dict:
+        """Build a normalized execution plan shared by sync and streaming chat."""
         resolved_thread_id = thread_id or str(
             uuid.uuid4()
         )
@@ -252,6 +257,7 @@ ANSWER:
         question: str,
         thread_id: str | None = None
     ):
+        """Execute one full chat turn and return a final response payload."""
         plan = self._build_chat_plan(
             user_id=user_id,
             question=question,
@@ -288,6 +294,7 @@ ANSWER:
         question: str,
         thread_id: str | None = None
     ) -> Generator[dict, None, None]:
+        """Yield start/token/end events while preserving final answer in history."""
         plan = self._build_chat_plan(
             user_id=user_id,
             question=question,

@@ -1,3 +1,5 @@
+"""Cross-encoder reranking logic for improving retrieval precision."""
+
 import math
 import os
 import threading
@@ -6,6 +8,7 @@ from sentence_transformers import CrossEncoder
 
 
 class ChunkReranker:
+    """Reranks candidate chunks using a cross-encoder + semantic signal."""
 
     _model_cache: dict[str, CrossEncoder] = {}
     _cache_lock = threading.Lock()
@@ -36,6 +39,7 @@ class ChunkReranker:
         model_name: str,
         device: str
     ) -> CrossEncoder:
+        """Reuse CrossEncoder instances to avoid repeated model loading."""
         cache_key = f"{model_name}::{device}"
 
         with cls._cache_lock:
@@ -52,10 +56,11 @@ class ChunkReranker:
         self,
         raw_score: float
     ) -> float:
-        # CrossEncoder returns logits; convert to [0, 1].
+        """Convert raw model logits to a stable probability-like value."""
         return 1.0 / (1.0 + math.exp(-raw_score))
 
     def _semantic_score(self, distance: float) -> float:
+        """Convert vector distance into a bounded similarity score."""
         return 1.0 / (1.0 + max(distance, 0.0))
 
     def rerank(
@@ -64,6 +69,7 @@ class ChunkReranker:
         chunks: list[dict],
         top_k: int
     ) -> list[dict]:
+        """Return top_k chunks sorted by blended rerank confidence."""
 
         if not chunks:
             return []

@@ -1,4 +1,7 @@
+"""Prompt construction utilities for combining docs, memory, and chat history."""
+
 class PromptBuilder:
+    """Builds final instruction prompts for response generation."""
 
     @staticmethod
     def build(
@@ -7,6 +10,7 @@ class PromptBuilder:
         memories: list[str] | None = None,
         history: list[dict] | None = None
     ) -> str:
+        """Compose one prompt string for the answer generation model."""
         memories = memories or []
         history = history or []
 

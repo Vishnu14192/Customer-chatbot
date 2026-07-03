@@ -1,4 +1,7 @@
+"""Rewrites follow-up user questions into standalone retrieval-friendly queries."""
+
 class QueryRewriter:
+    """Uses the configured LLM to rewrite context-dependent questions."""
 
     def __init__(self, llm):
 
@@ -9,6 +12,7 @@ class QueryRewriter:
         question,
         conversation_history
     ):
+        """Return a rewritten query string or the original if unchanged."""
 
         prompt = f"""
 You are a query rewriting assistant for a conversational AI chatbot.

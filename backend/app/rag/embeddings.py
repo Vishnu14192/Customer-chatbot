@@ -1,9 +1,12 @@
+"""Embedding service for documents and queries used by the retriever."""
+
 import os
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
 
 class EmbeddingService:
+    """Generates dense vectors via sentence-transformers models."""
 
     def __init__(
         self,
@@ -18,10 +21,11 @@ class EmbeddingService:
         self.model = SentenceTransformer(self.model_name)
 
     def embed_documents(self, texts):
-        # returns numpy array of shape (len(texts), dim)
+        """Embed a list of document chunks into float32 vectors."""
         vectors = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         return np.array(vectors, dtype=np.float32)
 
     def embed_query(self, query):
+        """Embed a single user query for nearest-neighbor search."""
         vec = self.model.encode([query], convert_to_numpy=True, show_progress_bar=False)[0]
         return np.array(vec, dtype=np.float32)

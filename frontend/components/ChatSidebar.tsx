@@ -1,5 +1,7 @@
 "use client";
 
+/** Sidebar listing chat threads with create/select/rename/delete controls. */
+
 import { useState } from "react";
 import { ChatThread } from "@/types/chat";
 
@@ -20,16 +22,19 @@ export default function ChatSidebar({
   onDeleteChat,
   onRenameChat,
 }: ChatSidebarProps) {
+  /** Renders the left conversation navigator. */
 
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
 
   function startRename(threadId: string, currentTitle: string) {
+    /** Enters inline rename mode for one thread. */
     setEditingThreadId(threadId);
     setEditingTitle(currentTitle);
   }
 
   async function saveRename(threadId: string) {
+    /** Persists edited thread title and exits rename mode. */
     const trimmedTitle = editingTitle.trim();
     if (!trimmedTitle) {
       return;
@@ -41,6 +46,7 @@ export default function ChatSidebar({
   }
 
   function cancelRename() {
+    /** Exits rename mode without applying changes. */
     setEditingThreadId(null);
     setEditingTitle("");
   }
@@ -88,13 +94,13 @@ export default function ChatSidebar({
                           cancelRename();
                         }
                       }}
-                      className="w-full text-sm border border-zinc-300 rounded px-2 py-1"
+                      className="w-full text-sm border border-zinc-300 rounded px-2 py-1 text-black placeholder:text-black"
                       autoFocus
                     />
                   ) : (
-                    <p className="font-medium truncate">{thread.title}</p>
+                    <p className="font-medium truncate text-black">{thread.title}</p>
                   )}
-                  <p className="text-xs text-zinc-500 mt-1">
+                  <p className="text-xs text-black mt-1">
                     {thread.messages.length} messages
                   </p>
                 </button>

@@ -1,3 +1,9 @@
+"""Chat API routes.
+
+Provides synchronous chat, streaming chat (HTTP and WebSocket), and thread
+management endpoints used by the frontend sidebar/history features.
+"""
+
 import logging
 import json
 from functools import lru_cache
@@ -5,6 +11,8 @@ from functools import lru_cache
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import WebSocket
+from fastapi import WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from app.schemas.chat import (
     ChatRequest,
@@ -27,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def get_chat_service() -> ChatService:
+    """Create and cache one ChatService instance for route handlers."""
     try:
         return ChatService()
     except ValueError as exc:
@@ -44,6 +53,7 @@ async def chat(
     request: ChatRequest,
     service: ChatService = Depends(get_chat_service)
 ):
+    """Handle one request-response chat call over HTTP."""
 
     try:
 
@@ -74,8 +84,10 @@ async def chat_stream(
     request: ChatRequest,
     service: ChatService = Depends(get_chat_service)
 ):
+    """Stream chat events over HTTP NDJSON for token-by-token UI updates."""
 
     def event_stream():
+        """Yield serialized stream events from ChatService."""
         try:
             for event in service.chat_stream_events(
                 user_id=request.user_id,
@@ -98,6 +110,57 @@ async def chat_stream(
     )
 
 
+@router.websocket("/ws/chat")
+async def chat_stream_ws(
+    websocket: WebSocket,
+):
+    """Stream chat events over WebSocket while keeping HTTP stream available."""
+    await websocket.accept()
+
+    service = get_chat_service()
+
+    try:
+        while True:
+            payload = await websocket.receive_json()
+
+            user_id = payload.get("user_id")
+            question = payload.get("question")
+            thread_id = payload.get("thread_id")
+
+            if not user_id or not question:
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "message": "user_id and question are required"
+                        }
+                    )
+                )
+                continue
+
+            try:
+                for event in service.chat_stream_events(
+                    user_id=user_id,
+                    question=question,
+                    thread_id=thread_id
+                ):
+                    await websocket.send_text(
+                        json.dumps(event)
+                    )
+            except Exception as exc:
+                logger.exception("Failed to stream chat response over websocket")
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "message": str(exc)
+                        }
+                    )
+                )
+    except WebSocketDisconnect:
+        return
+
+
 @router.get(
     "/chat/threads/{user_id}",
     response_model=ChatThreadListResponse
@@ -106,6 +169,7 @@ async def list_threads(
     user_id: str,
     service: ChatService = Depends(get_chat_service)
 ):
+    """Return conversation thread summaries for one user."""
 
     try:
         threads = service.chat_history.get_threads(user_id)
@@ -133,6 +197,7 @@ async def get_thread_history(
     thread_id: str,
     service: ChatService = Depends(get_chat_service)
 ):
+    """Return ordered message history for a specific thread."""
 
     try:
         messages = service.chat_history.get_thread_messages(
@@ -164,6 +229,7 @@ async def delete_thread(
     thread_id: str,
     service: ChatService = Depends(get_chat_service)
 ):
+    """Delete one conversation thread from persisted history."""
 
     try:
         deleted = service.chat_history.delete_thread(
@@ -195,6 +261,7 @@ async def rename_thread(
     request: RenameThreadRequest,
     service: ChatService = Depends(get_chat_service)
 ):
+    """Rename one persisted conversation thread."""
 
     try:
         title = request.title.strip()

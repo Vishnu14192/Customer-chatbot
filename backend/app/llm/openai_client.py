@@ -1,9 +1,12 @@
+"""OpenAI wrapper kept for optional cloud model usage."""
+
 import os
 
 from openai import OpenAI
 
 
 class OpenAIClient:
+    """Encapsulates OpenAI responses API calls."""
 
     def __init__(
         self,
@@ -32,6 +35,7 @@ class OpenAIClient:
         self,
         prompt: str
     ) -> str:
+        """Generate one full answer string from OpenAI."""
 
         response = self.client.responses.create(
             model=self.model,

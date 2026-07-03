@@ -1,7 +1,10 @@
+"""Thin Ollama wrapper used by chat service for sync and token streaming."""
+
 import ollama
 
 
 class OllamaClient:
+    """Encapsulates local model calls to Ollama."""
 
     def __init__(
         self,
@@ -13,6 +16,7 @@ class OllamaClient:
         self,
         prompt: str
     ) -> str:
+        """Generate a full response in one call."""
 
         response = ollama.chat(
             model=self.model,
@@ -30,6 +34,7 @@ class OllamaClient:
         self,
         prompt: str
     ):
+        """Yield incremental token chunks for streaming UIs."""
 
         response_stream = ollama.chat(
             model=self.model,

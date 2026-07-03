@@ -1,5 +1,7 @@
 "use client";
 
+/** Input row for composing and submitting chat prompts. */
+
 import { useState } from "react";
 
 interface ChatInputProps {
@@ -11,10 +13,12 @@ export default function ChatInput({
   onSend,
   disabled = false,
 }: ChatInputProps) {
+  /** Captures user text and triggers submit on click/Enter. */
 
   const [text, setText] = useState("");
 
   function submit() {
+    /** Validates and dispatches the current message text. */
     const trimmed = text.trim();
     if (!trimmed || disabled) {
       return;
@@ -38,7 +42,7 @@ export default function ChatInput({
           }
         }}
         placeholder="Ask anything about your order, refund, shipping..."
-        className="border border-zinc-300 rounded-lg px-3 py-2 flex-1"
+        className="border border-zinc-300 rounded-lg px-3 py-2 flex-1 text-black placeholder:text-black"
         disabled={disabled}
       />
 

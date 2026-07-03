@@ -1,3 +1,5 @@
+"""Personal-memory service with mem0-first strategy and local fallback."""
+
 import os
 import uuid
 from pathlib import Path
@@ -16,6 +18,7 @@ _CHROMA_PATH = str(Path(__file__).parent.parent.parent / "mem0_storage")
 
 
 class MemoryService:
+    """Stores and retrieves user-level personal facts across conversations."""
 
     def __init__(self):
         """
@@ -79,6 +82,7 @@ class MemoryService:
         )
 
     def add_memory(self, user_id, message):
+        """Persist one memory sentence for the user."""
         if getattr(self, "_use_mem0", False):
             # mem0 memory API
             self.memory.add(message, user_id=user_id)
@@ -96,6 +100,7 @@ class MemoryService:
         )
 
     def search_memory(self, query, user_id, top_k: int = 5):
+        """Retrieve top personal memories relevant to the current query."""
         if getattr(self, "_use_mem0", False):
             results = self.memory.search(query=query, filters={"user_id": user_id})
             return results.get("results", [])
@@ -121,6 +126,7 @@ class MemoryService:
         return out
 
     def should_store_memory(self, message):
+        """Heuristic gate to decide whether a message looks like personal info."""
         message = message.lower()
 
         memory_patterns = [
