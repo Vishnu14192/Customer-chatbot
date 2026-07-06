@@ -1,28 +1,11 @@
 "use client";
 
 /**
- * Main chat hook that manages thread lifecycle, streaming, and history restore.
- * 
- * This hook composes multiple sub-modules:
- * - chatHelpers.ts: Utility functions for creating entities
- * - useChatState.ts: State initialization and derived values
- * - useChatActions.ts: All action functions
- * - useChatEffects.ts: Side effects (bootstrap & lazy-load)
- * 
- * It provides the single interface that components use for chat functionality.
+ * Main chat hook that exposes chat state/actions from the central Zustand store.
  */
 
-import {
-  initializeChatState,
-  computeDerivedValues,
-} from "./useChatState";
-import {
-  createChatActions,
-} from "./useChatActions";
-import {
-  useBootstrapEffect,
-  useLazyLoadEffect,
-} from "./useChatEffects";
+import { useEffect, useMemo } from "react";
+import { useChatStore } from "@/stores/useChatStore";
 
 /**
  * Main chat hook that manages:
@@ -35,70 +18,46 @@ import {
  * @returns Object containing all chat state, actions, and derived values
  */
 export function useChat() {
-  // Initialize all state
-  const {
-    threads,
-    setThreads,
-    activeThreadId,
-    setActiveThreadId,
-    loadingThreadId,
-    setLoadingThreadId,
-    isBootstrapping,
-    setIsBootstrapping,
-  } = initializeChatState();
+  const threads = useChatStore((state) => state.threads);
+  const activeThreadId = useChatStore((state) => state.activeThreadId);
+  const loadingThreadId = useChatStore((state) => state.loadingThreadId);
+  const isBootstrapping = useChatStore((state) => state.isBootstrapping);
 
-  // Compute derived values from state
-  const {
-    activeThread,
-    messages,
-    loading,
-    loadingHistory,
-  } = computeDerivedValues(
-    threads,
-    activeThreadId,
-    loadingThreadId,
-    isBootstrapping
+  const bootstrap = useChatStore((state) => state.bootstrap);
+  const loadThreadIfNeeded = useChatStore((state) => state.loadThreadIfNeeded);
+  const selectChat = useChatStore((state) => state.selectChat);
+  const newChat = useChatStore((state) => state.newChat);
+  const removeChat = useChatStore((state) => state.removeChat);
+  const renameChat = useChatStore((state) => state.renameChat);
+  const sendMessage = useChatStore((state) => state.send);
+
+  const activeThread = useMemo(
+    () => threads.find((thread) => thread.id === activeThreadId) || threads[0],
+    [threads, activeThreadId]
   );
 
-  // Create action functions with access to state setters
-  const {
-    selectChat,
-    newChat,
-    removeChat,
-    renameChat,
-    send: sendMessage,
-  } = createChatActions(
-    threads,
-    setThreads,
-    activeThreadId,
-    setActiveThreadId,
-    setLoadingThreadId
-  );
+  const messages = activeThread?.messages || [];
+  const loading = loadingThreadId === activeThread?.id;
+  const loadingHistory = isBootstrapping || !activeThread?.isLoaded;
 
-  // Set up side effects
-  useBootstrapEffect(
-    setThreads,
-    setActiveThreadId,
-    setIsBootstrapping
-  );
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
 
-  useLazyLoadEffect(
-    activeThread,
-    isBootstrapping,
-    setThreads
-  );
+  useEffect(() => {
+    if (!isBootstrapping && activeThread?.id) {
+      void loadThreadIfNeeded(activeThread.id);
+    }
+  }, [activeThread?.id, isBootstrapping, loadThreadIfNeeded]);
 
-  // Export all state and actions for use in components
   return {
-    // State
     threads,
     activeThreadId: activeThread?.id || "",
     messages,
     loading,
     loadingHistory,
 
-    // Actions
-    send: (question: string) => sendMessage(question, activeThread),
+    send: (question: string) => sendMessage(question),
     newChat,
     selectChat,
     removeChat,
