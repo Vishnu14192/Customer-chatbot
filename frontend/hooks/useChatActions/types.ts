@@ -1,13 +1,16 @@
 import { ChatThread } from "@/types/chat";
 
 export type LoadingThreadState = string | null;
+export type SetThreads = (
+  threads: ChatThread[] | ((prev: ChatThread[]) => ChatThread[])
+) => void;
 export type SetLoadingThreadId = (
   id: LoadingThreadState | ((current: LoadingThreadState) => LoadingThreadState)
 ) => void;
 
 export interface CreateChatActionsArgs {
   threads: ChatThread[];
-  setThreads: (threads: ChatThread[]) => void;
+  setThreads: SetThreads;
   activeThreadId: string;
   setActiveThreadId: (id: string) => void;
   setLoadingThreadId: SetLoadingThreadId;

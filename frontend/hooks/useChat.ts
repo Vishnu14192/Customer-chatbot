@@ -62,7 +62,6 @@ export function useChat() {
 
   // Create action functions with access to state setters
   const {
-    updateThread,
     selectChat,
     newChat,
     removeChat,
@@ -70,7 +69,7 @@ export function useChat() {
     send: sendMessage,
   } = createChatActions(
     threads,
-    (updated) => setThreads(updated),
+    setThreads,
     activeThreadId,
     setActiveThreadId,
     setLoadingThreadId

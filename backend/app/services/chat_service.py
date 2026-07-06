@@ -156,24 +156,75 @@ class ChatService:
             )
         )
 
-        memories = [
-            item["memory"]
-            for item in memory_results
-            if "memory" in item
-        ]
-
-        personal_keywords = [
-            "my name",
-            "who am i",
-            "favorite",
-            "where do i live",
-            "my city"
-        ]
-
-        is_personal = any(
-            keyword in effective_question.lower()
-            for keyword in personal_keywords
+        profile_summary_query = self.memory_service.is_profile_summary_query(
+            effective_question
         )
+
+        if profile_summary_query:
+            profile_memories = self.memory_service.get_user_memories(
+                user_id=user_id,
+                top_k=40
+            )
+
+            if profile_memories:
+                memory_context = "\n".join(profile_memories)
+
+                prompt = f"""
+You are a helpful assistant.
+
+Create a concise personal profile summary using only the stored memory facts below.
+Keep it factual and avoid inventing details.
+Use 3-6 short bullet points.
+
+STORED MEMORY FACTS:
+{memory_context}
+
+USER QUESTION:
+{effective_question}
+
+SUMMARY:
+"""
+
+                return {
+                    "thread_id": resolved_thread_id,
+                    "prompt": prompt,
+                    "sources": ["memory"],
+                    "should_store_memory": False,
+                    "question": question,
+                }
+
+            prompt = f"""
+You are a helpful assistant.
+
+The user asked for a profile summary but no personal memory exists yet.
+Respond in one short sentence saying you do not have personal details yet and ask them to share some profile information.
+
+USER QUESTION:
+{effective_question}
+
+RESPONSE:
+"""
+
+            return {
+                "thread_id": resolved_thread_id,
+                "prompt": prompt,
+                "sources": ["memory"],
+                "should_store_memory": False,
+                "question": question,
+            }
+
+        memories = [
+            item.get("memory") or item.get("text") or item.get("content")
+            for item in memory_results
+            if isinstance(item, dict)
+        ]
+        memories = [memory for memory in memories if memory]
+
+        is_personal = self.memory_service.is_personal_query(
+            effective_question
+        )
+
+        should_store_memory = self.memory_service.should_store_memory(question)
 
         if is_personal and memories:
             memory_context = "\n".join(
@@ -199,6 +250,56 @@ ANSWER:
                 "prompt": prompt,
                 "sources": ["memory"],
                 "should_store_memory": False,
+                "question": question,
+            }
+
+        if is_personal and not memories:
+            prompt = f"""
+You are a helpful assistant.
+
+The user asked about their personal profile, but there is no stored memory yet.
+Respond briefly that you do not have their personal details yet and ask them to share profile information they want you to remember.
+
+USER QUESTION:
+{effective_question}
+
+RESPONSE:
+"""
+
+            return {
+                "thread_id": resolved_thread_id,
+                "prompt": prompt,
+                "sources": ["memory"],
+                "should_store_memory": False,
+                "question": question,
+            }
+
+        if should_store_memory:
+            memory_context = "\n".join(
+                self.memory_service.extract_personal_facts(question)
+            )
+
+            prompt = f"""
+You are a helpful assistant.
+
+The user shared personal information. Acknowledge that you understood it in 1-2 short lines.
+Do not invent new details.
+Do not switch to Flipkart support fallback messaging.
+
+USER FACTS:
+{memory_context}
+
+USER MESSAGE:
+{question}
+
+RESPONSE:
+"""
+
+            return {
+                "thread_id": resolved_thread_id,
+                "prompt": prompt,
+                "sources": ["memory"],
+                "should_store_memory": True,
                 "question": question,
             }
 
@@ -247,7 +348,7 @@ ANSWER:
             "thread_id": resolved_thread_id,
             "prompt": prompt,
             "sources": sources,
-            "should_store_memory": self.memory_service.should_store_memory(question),
+            "should_store_memory": should_store_memory,
             "question": question,
         }
 

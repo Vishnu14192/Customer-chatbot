@@ -19,7 +19,9 @@ import { SetLoadingThreadId } from "./useChatActions/types";
  */
 export function createChatActions(
   threads: ChatThread[],
-  setThreads: (threads: ChatThread[]) => void,
+  setThreads: (
+    threads: ChatThread[] | ((prev: ChatThread[]) => ChatThread[])
+  ) => void,
   activeThreadId: string,
   setActiveThreadId: (id: string) => void,
   setLoadingThreadId: SetLoadingThreadId
@@ -29,8 +31,8 @@ export function createChatActions(
     threadId: string,
     updater: (thread: ChatThread) => ChatThread
   ) {
-    setThreads(
-      threads.map((thread) =>
+    setThreads((prev) =>
+      prev.map((thread) =>
         thread.id === threadId ? updater(thread) : thread
       )
     );

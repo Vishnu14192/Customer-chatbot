@@ -100,9 +100,6 @@ export default function ChatSidebar({
                   ) : (
                     <p className="font-medium truncate text-black">{thread.title}</p>
                   )}
-                  <p className="text-xs text-black mt-1">
-                    {thread.messages.length} messages
-                  </p>
                 </button>
 
                 <div className="flex flex-col gap-1">
